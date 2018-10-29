@@ -73,23 +73,27 @@ var (
 	// FIXME currently ignored
 	// enabledGroupsFlag = flag.String("groups.enabled", "asserts,durability,background_flushing,connections,extra_info,global_lock,index_counters,network,op_counters,op_counters_repl,memory,locks,metrics", "Comma-separated list of groups to use, for more info see: docs.mongodb.org/manual/reference/command/serverStatus/")
 	enabledGroupsFlag = flag.String("groups.enabled", "", "Currently ignored")
-	loglevel = flag.String("log.level", "info", "Default Log Level for logs")
+	loglevel          = flag.String("log.level", "info", "Default Log Level for logs")
 )
 
 func main() {
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s %s exports various MongoDB metrics in Prometheus format.\n", os.Args[0], version.Version)
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
 	}
+
 	flag.Parse()
 
 	// See if we have a different log level passed, then use that..
-	if *loglevel == "debug" || *loglevel == "fatal" || *loglevel == "error" || *loglevel == "warn"  {
+	if *loglevel == "debug" || *loglevel == "fatal" || *loglevel == "error" || *loglevel == "warn" {
+		log.Infof("Setting Debug Level %s", *loglevel)
 		log.Base().SetLevel(*loglevel)
-	}else {
+	} else {
 		log.Base().SetLevel("info") // default level
+		log.Info("Setting Debug Level info")
 	}
 	uri := os.Getenv("MONGODB_URI")
 	if uri != "" {
@@ -97,6 +101,7 @@ func main() {
 	}
 
 	if *testF {
+		log.Info("Inside Test ")
 		buildInfo, err := shared.TestConnection(
 			shared.MongoSessionOpts{
 				URI:                   *uriF,
@@ -119,6 +124,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	log.Infof("Starting MongoDB Collector: CollectDbStats:%t, CollectCollectionStats:%t, CollectTopMetric:%t, CollectIndexStats:%t", *collectDatabaseF, *collectCollectionF, *collectTopF, *collectIndexUsageF)
 	mongodbCollector := collector.NewMongodbCollector(&collector.MongodbCollectorOpts{
 		URI:                      *uriF,
 		TLSConnection:            *tlsF,
@@ -135,6 +141,5 @@ func main() {
 		SyncTimeout:              *syncTimeoutF,
 	})
 	prometheus.MustRegister(mongodbCollector)
-
 	exporter_shared.RunServer("MongoDB", *listenAddressF, *metricsPathF, promhttp.ContinueOnError)
 }
