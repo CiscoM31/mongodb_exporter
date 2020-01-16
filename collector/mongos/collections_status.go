@@ -1,10 +1,13 @@
 package mongos
 
 import (
+	"context"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var (
@@ -95,30 +98,70 @@ func (collStatList *CollectionStatList) Describe(ch chan<- *prometheus.Desc) {
 	collectionIndexesSize.Describe(ch)
 }
 
-// GetDatabaseStatus returns stats for a given database
-func GetCollectionStatList(session *mgo.Session) *CollectionStatList {
+var (
+	logSuppressCS = make(map[string]bool)
+)
+
+// GetCollectionStatList returns stats for a given database
+func GetCollectionStatList(client *mongo.Client) *CollectionStatList {
 	collectionStatList := &CollectionStatList{}
-	database_names, err := session.DatabaseNames()
+	dbNames, err := client.ListDatabaseNames(context.TODO(), bson.M{})
 	if err != nil {
-		log.Error("Failed to get database names")
+		_, logSFound := logSuppressCS[""]
+		if !logSFound {
+			log.Errorf("%s. Collection stats will not be collected. This log message will be suppressed from now.", err)
+			logSuppressCS[""] = true
+		}
 		return nil
 	}
-	for _, db := range database_names {
-		collection_names, err := session.DB(db).CollectionNames()
+	delete(logSuppressCS, "")
+	for _, dbName := range dbNames {
+		c, err := client.Database(dbName).ListCollections(context.TODO(), bson.M{}, options.ListCollections().SetNameOnly(true))
 		if err != nil {
-			log.Error("Failed to get collection names for db=" + db)
-			return nil
-		}
-		for _, collection_name := range collection_names {
-			collStatus := CollectionStatus{}
-			err := session.DB(db).Run(bson.D{{"collStats", collection_name}, {"scale", 1}}, &collStatus)
-			collStatus.Database = db
-			collStatus.Name = collection_name
-			if err != nil {
-				log.Error("Failed to get collection status.")
-				return nil
+			_, logSFound := logSuppressCS[dbName]
+			if !logSFound {
+				log.Errorf("%s. Collection stats will not be collected for this db. This log message will be suppressed from now.", err)
+				logSuppressCS[dbName] = true
 			}
-			collectionStatList.Members = append(collectionStatList.Members, collStatus)
+		} else {
+
+			type collListItem struct {
+				Name string `bson:"name,omitempty"`
+				Type string `bson:"type,omitempty"`
+			}
+
+			delete(logSuppressCS, dbName)
+			for c.Next(context.TODO()) {
+				coll := &collListItem{}
+				err := c.Decode(&coll)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				collStatus := CollectionStatus{}
+				res := client.Database(dbName).RunCommand(context.TODO(), bson.D{{"collStats", coll.Name}, {"scale", 1}})
+				err = res.Decode(&collStatus)
+				if err != nil {
+					_, logSFound := logSuppressCS[dbName+"."+coll.Name]
+					if !logSFound {
+						log.Errorf("%s. Collection stats will not be collected for this collection. This log message will be suppressed from now.", err)
+						logSuppressCS[dbName+"."+coll.Name] = true
+					}
+				} else {
+					delete(logSuppressCS, dbName+"."+coll.Name)
+					collStatus.Database = dbName
+					collStatus.Name = coll.Name
+					collectionStatList.Members = append(collectionStatList.Members, collStatus)
+				}
+			}
+
+			if err := c.Err(); err != nil {
+				log.Error(err)
+			}
+
+			if err := c.Close(context.TODO()); err != nil {
+				log.Errorf("Could not close ListCollections() cursor, reason: %v", err)
+			}
 		}
 	}
 
