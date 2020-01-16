@@ -44,7 +44,7 @@ var (
 
 	collectDatabaseF             = kingpin.Flag("collect.database", "Enable collection of Database metrics").Bool()
 	collectCollectionF           = kingpin.Flag("collect.collection", "Enable collection of Collection metrics").Bool()
-	collectTopF                  = kingpin.Flag("collect.topmetrics", "Enable collection of table top metrics").Bool()
+	collectTopF                  = kingpin.Flag("collect.topmetrics", "Enable collection of table top metrics").Default("true").Bool()
 	collectIndexUsageF           = kingpin.Flag("collect.indexusage", "Enable collection of per index usage stats").Bool()
 	mongodbCollectConnPoolStatsF = kingpin.Flag("collect.connpoolstats", "Collect MongoDB connpoolstats").Bool()
 
