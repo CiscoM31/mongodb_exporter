@@ -61,10 +61,6 @@ func main() {
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Parse()
 
-	uri := os.Getenv("MONGODB_URI")
-	if uri != "" {
-		uriF = &uri
-	}
 
 	if *testF {
 		log.Info("Inside Test ")
@@ -84,6 +80,7 @@ func main() {
 	// See: https://jira.percona.com/browse/PMM-3250 and https://github.com/percona/mongodb_exporter/pull/132#discussion_r262227248
 	log.Infoln("Starting", program, version.Info())
 	log.Infoln("Build context", version.BuildContext())
+	log.Infof("Mongo URl %s", *uriF)
 	log.Infof("Starting MongoDB Collector: CollectDbStats:%t, CollectCollectionStats:%t, CollectTopMetric:%t, CollectIndexStats:%t", *collectDatabaseF, *collectCollectionF, *collectTopF, *collectIndexUsageF)
 
 	programCollector := version.NewCollector(program)
