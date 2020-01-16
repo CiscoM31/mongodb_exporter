@@ -16,11 +16,14 @@ package main
 
 import (
 	"fmt"
+	"github.com/percona/exporter_shared"
+	"github.com/percona/mongodb_exporter/collector"
+	"github.com/percona/mongodb_exporter/shared"
+
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/percona/exporter_shared"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
@@ -28,9 +31,6 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	pmmVersion "github.com/percona/pmm/version"
-
-	"github.com/percona/mongodb_exporter/collector"
-	"github.com/percona/mongodb_exporter/shared"
 )
 
 const (
@@ -53,8 +53,7 @@ var (
 		Default("mongodb://localhost:27017").
 		Envar("MONGODB_URI").
 		String()
-	testF    = kingpin.Flag("test", "Check MongoDB connection, print buildInfo() information and exit.").Bool()
-	loglevel = kingpin.Flag("log.level", "info Default Log Level for logs").Default("info").String()
+	testF = kingpin.Flag("test", "Check MongoDB connection, print buildInfo() information and exit.").Bool()
 )
 
 func main() {
@@ -62,14 +61,6 @@ func main() {
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Parse()
 
-	// See if we have a different log level passed, then use that..
-	if *loglevel == "debug" || *loglevel == "fatal" || *loglevel == "error" || *loglevel == "warn" {
-		log.Infof("Setting Debug Level %s", *loglevel)
-		log.Base().SetLevel(*loglevel)
-	} else {
-		log.Base().SetLevel("info") // default level
-		log.Info("Setting Debug Level info")
-	}
 	uri := os.Getenv("MONGODB_URI")
 	if uri != "" {
 		uriF = &uri
